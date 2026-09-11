@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EFF2ED;
+    --paper-raised:#F8FAF6;
+    --ink:#1E2B2C;
+    --ink-soft:#5B6B69;
+    --line:#C9D1CB;
+    --line-strong:#9FADA6;
+    --teal:#3E7C7C;
+    --teal-deep:#2C5C5C;
+    --amber:#C98A3B;
+    --clay:#B6553F;
+    --moss:#6B8F5A;
+    --sky:#5C86A8;
+    --focus:#2C5C5C;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    min-height:100vh;
+  }
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  a{color:var(--teal-deep);}
+
+  /* ---------- layout shell ---------- */
+  .shell{
+    max-width:1180px;
+    margin:0 auto;
+    padding:28px 24px 80px;
+  }
+  header.top{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:24px;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:16px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+  }
+  header.top h1{
+    font-size:22px;
+    font-weight:600;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  header.top .subtitle{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-top:4px;
+  }
+  .sync-block{
+    text-align:right;
+    font-size:12px;
+    color:var(--ink-soft);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .sync-dot{
+    width:8px;height:8px;
+    background:var(--line-strong);
+    display:inline-block;
+  }
+  .sync-dot.live{background:var(--moss);}
+  .sync-dot.err{background:var(--clay);}
+  .sync-dot.busy{background:var(--amber);}
+  button.ghost{
+    background:none;
+    border:1px solid var(--ink);
+    color:var(--ink);
+    font-family:inherit;
+    font-size:12px;
+    padding:6px 10px;
+    cursor:pointer;
+  }
+  button.ghost:hover{background:var(--ink);color:var(--paper-raised);}
+
+  /* ---------- controls row ---------- */
+  .controls{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .filters{
+    display:flex;
+    gap:0;
+    border-bottom:1px solid var(--line);
+  }
+  .filters button{
+    background:none;
+    border:none;
+    font-family:inherit;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    padding:8px 12px 10px;
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+    margin-bottom:-1px;
+  }
+  .filters button.active{
+    color:var(--ink);
+    border-bottom-color:var(--teal-deep);
+    font-weight:600;
+  }
+  .search-add{display:flex; gap:10px; align-items:center;}
+  input[type="text"], input[type="date"], select, textarea{
+    font-family:inherit;
+    font-size:13px;
+    color:var(--ink);
+    background:var(--paper-raised);
+    border:1px solid var(--line-strong);
+    padding:7px 9px;
+  }
+  input[type="text"]:focus, select:focus, textarea:focus, input[type="date"]:focus{
+    outline:2px solid var(--focus);
+    outline-offset:1px;
+  }
+  #searchInput{width:220px;}
+  button.primary{
+    background:var(--teal-deep);
+    color:var(--paper-raised);
+    border:1px solid var(--teal-deep);
+    font-family:inherit;
+    font-size:13px;
+    padding:8px 14px;
+    cursor:pointer;
+  }
+  button.primary:hover{background:var(--ink);border-color:var(--ink);}
+
+  /* ---------- ledger table ---------- */
+  .ledger-wrap{
+    border-top:1px solid var(--ink);
+    border-bottom:1px solid var(--ink);
+    overflow-x:auto;
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    min-width:820px;
+  }
+  thead th{
+    text-align:left;
+    font-weight:600;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    padding:10px 12px;
+    border-bottom:1px solid var(--line-strong);
+    white-space:nowrap;
+  }
+  tbody td{
+    padding:11px 12px;
+    border-bottom:1px solid var(--line);
+    vertical-align:top;
+    font-size:13px;
+  }
+  tbody tr:hover{background:var(--paper-raised);}
+  tbody tr{cursor:pointer;}
+  .id-cell{font-weight:500;}
+  .status-swatch{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .status-swatch .sq{width:9px;height:9px;display:inline-block;}
+  .notes-cell{color:var(--ink-soft); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .empty-row td{
+    text-align:center;
+    color:var(--ink-soft);
+    padding:40px 12px;
+    font-size:13px;
+  }
+
+  /* status colors */
+  .st-Sample-Not-Received .sq{background:var(--line-strong);}
+  .st-Sample-Received .sq{background:var(--teal);}
+  .st-Result-Awaited .sq{background:var(--amber);}
+  .st-Completed .sq{background:var(--moss);}
+
+  /* ---------- slide-over panel ---------- */
+  .overlay{
+    position:fixed; inset:0;
+    background:rgba(30,43,44,0.35);
+    display:none;
+    z-index:10;
+  }
+  .overlay.show{display:block;}
+  .panel{
+    position:fixed;
+    top:0; right:0; bottom:0;
+    width:min(420px, 92vw);
+    background:var(--paper-raised);
+    border-left:2px solid var(--ink);
+    transform:translateX(100%);
+    transition:transform 0.22s ease;
+    z-index:11;
+    overflow-y:auto;
+    padding:26px 26px 40px;
+  }
+  .panel.show{transform:translateX(0);}
+  .panel h2{
+    font-size:17px;
+    margin:0 0 2px;
+  }
+  .panel .panel-sub{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-bottom:20px;
+  }
+  .field{margin-bottom:16px;}
+  .field label{
+    display:block;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-bottom:5px;
+  }
+  .field input, .field select, .field textarea{width:100%;}
+  .field textarea{resize:vertical; min-height:60px;}
+  .panel-actions{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:24px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+  }
+  .panel-actions .right{display:flex; gap:8px;}
+  .close-x{
+    position:absolute; top:22px; right:22px;
+    background:none; border:none; cursor:pointer;
+    font-size:18px; color:var(--ink-soft); line-height:1;
+  }
+  .delete-link{
+    background:none;border:none;color:var(--clay);
+    font-family:inherit;font-size:12px;cursor:pointer;padding:0;
+  }
+  .field-error{color:var(--clay); font-size:11.5px; margin-top:10px; display:none;}
+
+  /* ---------- settings panel ---------- */
+  .settings-note{
+    font-size:12px;
+    color:var(--ink-soft);
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    padding:10px 12px;
+    margin-bottom:16px;
+  }
+
+  @media (max-width:640px){
+    .controls{align-items:stretch;}
+    .search-add{flex-wrap:wrap;}
+    #searchInput{width:100%;}
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <header class="top">
+    <div>
+      <h1>Test Ledger</h1>
+      <div class="subtitle">Live tracker — synced to Google Sheets</div>
+    </div>
+    <div class="sync-block">
+      <button class="ghost" id="lockBtn" title="Editing access">🔒 Unlock editing</button>
+      <button class="ghost" id="settingsBtn" title="Connection settings">Settings</button>
+      <button class="ghost" id="refreshBtn">Refresh</button>
+      <span><span class="sync-dot" id="syncDot"></span> <span id="syncText">not connected</span></span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="filters" id="filterBar">
+      <button class="active" data-status="__all">All</button>
+      <button data-status="Sample Not Received">Sample Not Received</button>
+      <button data-status="Sample Received">Sample Received</button>
+      <button data-status="Result Awaited">Result Awaited</button>
+      <button data-status="Completed">Completed</button>
+    </div>
+    <div class="search-add">
+      <input type="text" id="searchInput" placeholder="Search name, hospital no., test…">
+      <button class="primary" id="addBtn">+ New test</button>
+    </div>
+  </div>
+
+  <div class="ledger-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Test ID</th>
+          <th>Name</th>
+          <th>Hospital No.</th>
+          <th>Age</th>
+          <th>Sex</th>
+          <th>Test ordered</th>
+          <th>Date ordered</th>
+          <th>Status</th>
+          <th>Result received</th>
+          <th>Remarks</th>
+          <th>Last updated</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr class="empty-row"><td colspan="11">Connect your Google Sheet in Settings to load records.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+
+<!-- Add / edit sample panel -->
+<div class="panel" id="samplePanel">
+  <button class="close-x" data-close>&times;</button>
+  <h2 id="panelTitle">New test</h2>
+  <div class="panel-sub" id="panelSub">Fill in what you know — you can edit this later.</div>
+  <form id="sampleForm">
+    <div class="field">
+      <label for="f-id">Test ID</label>
+      <input type="text" id="f-id" class="mono" placeholder="auto-generated if left blank">
+    </div>
+    <div class="field">
+      <label for="f-name">Name</label>
+      <input type="text" id="f-name" placeholder="Patient name">
+    </div>
+    <div class="field">
+      <label for="f-hospno">Hospital number</label>
+      <input type="text" id="f-hospno" class="mono" placeholder="e.g. HN-004821">
+    </div>
+    <div class="field">
+      <label for="f-age">Age</label>
+      <input type="text" inputmode="numeric" id="f-age" placeholder="e.g. 42">
+    </div>
+    <div class="field">
+      <label for="f-sex">Sex</label>
+      <select id="f-sex">
+        <option value="">—</option>
+        <option>Male</option>
+        <option>Female</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-test">Test ordered</label>
+      <input type="text" id="f-test" placeholder="e.g. Full blood count">
+    </div>
+    <div class="field">
+      <label for="f-dateordered">Date of test ordered</label>
+      <input type="date" id="f-dateordered">
+    </div>
+    <div class="field">
+      <label for="f-status">Status</label>
+      <select id="f-status">
+        <option>Sample Not Received</option>
+        <option>Sample Received</option>
+        <option>Result Awaited</option>
+        <option>Completed</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-dateresult">Date result received</label>
+      <input type="date" id="f-dateresult">
+    </div>
+    <div class="field">
+      <label for="f-remarks">Remarks</label>
+      <textarea id="f-remarks" placeholder="Anything worth flagging"></textarea>
+    </div>
+    <div class="field-error" id="formError"></div>
+    <div class="panel-actions">
+      <button type="button" class="delete-link" id="deleteBtn" style="display:none;">Delete record</button>
+      <div class="right">
+        <button type="button" class="ghost" data-close>Cancel</button>
+        <button type="submit" class="primary" id="saveBtn">Save record</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Settings panel -->
+<div class="panel" id="settingsPanel">
+  <button class="close-x" data-close>&times;</button>
+  <h2>Connection settings</h2>
+  <div class="panel-sub">Paste the Web app URL from your Apps Script deployment.</div>
+  <div class="settings-note">
+    In your Sheet: Extensions → Apps Script → paste the provided Code.gs → Deploy → New deployment → Web app → Who has access: Anyone. Copy the URL it gives you.
+  </div>
+  <div class="field">
+    <label for="f-apiurl">Apps Script Web app URL</label>
+    <input type="text" id="f-apiurl" placeholder="https://script.google.com/macros/s/…/exec">
+  </div>
+  <div class="field">
+    <label for="f-poll">Auto-refresh interval (seconds)</label>
+    <input type="text" id="f-poll" value="20">
+  </div>
+  <div class="field-error" id="settingsError"></div>
+  <div class="panel-actions">
+    <div></div>
+    <div class="right">
+      <button type="button" class="ghost" data-close>Cancel</button>
+      <button type="button" class="primary" id="saveSettingsBtn">Save & connect</button>
+    </div>
+  </div>
+</div>
+
+<!-- Unlock editing panel -->
+<div class="panel" id="unlockPanel">
+  <button class="close-x" data-close>&times;</button>
+  <h2>Unlock editing</h2>
+  <div class="panel-sub" id="unlockSub">Enter the admin password to add, edit, or delete records. Viewing the ledger never requires a password.</div>
+  <div class="field">
+    <label for="f-password">Admin password</label>
+    <input type="password" id="f-password" autocomplete="current-password">
+  </div>
+  <div class="field-error" id="unlockError"></div>
+  <div class="panel-actions">
+    <div></div>
+    <div class="right">
+      <button type="button" class="ghost" data-close>Cancel</button>
+      <button type="button" class="primary" id="unlockSubmitBtn">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var STORE_KEY = 'labLedgerSettings';
+  var state = { samples: [], filter: '__all', search: '', apiUrl: '', pollSeconds: 20, pollTimer: null, editingId: null, adminPassword: '', pendingUnlockCallback: null };
+
+  // ---------- persistence of connection settings (local to this browser) ----------
+  function loadSettings(){
+    try{
+      var raw = localStorage.getItem(STORE_KEY);
+      if(raw){
+        var s = JSON.parse(raw);
+        state.apiUrl = s.apiUrl || '';
+        state.pollSeconds = s.pollSeconds || 20;
+      }
+      state.adminPassword = sessionStorage.getItem('labAdminPassword') || '';
+    }catch(e){}
+  }
+  function saveSettings(){
+    localStorage.setItem(STORE_KEY, JSON.stringify({apiUrl: state.apiUrl, pollSeconds: state.pollSeconds}));
+  }
+
+  // ---------- DOM refs ----------
+  var tableBody = document.getElementById('tableBody');
+  var syncDot = document.getElementById('syncDot');
+  var syncText = document.getElementById('syncText');
+  var overlay = document.getElementById('overlay');
+  var samplePanel = document.getElementById('samplePanel');
+  var settingsPanel = document.getElementById('settingsPanel');
+  var unlockPanel = document.getElementById('unlockPanel');
+  var lockBtn = document.getElementById('lockBtn');
+
+  function setSync(mode, text){
+    syncDot.className = 'sync-dot' + (mode ? ' ' + mode : '');
+    syncText.textContent = text;
+  }
+
+  function openPanel(panel){
+    overlay.classList.add('show');
+    panel.classList.add('show');
+  }
+  function closeAllPanels(){
+    overlay.classList.remove('show');
+    samplePanel.classList.remove('show');
+    settingsPanel.classList.remove('show');
+    unlockPanel.classList.remove('show');
+  }
+  overlay.addEventListener('click', closeAllPanels);
+  document.querySelectorAll('[data-close]').forEach(function(el){
+    el.addEventListener('click', closeAllPanels);
+  });
+
+  // ---------- editing lock ----------
+  function isUnlocked(){ return !!state.adminPassword; }
+
+  function refreshLockBtn(){
+    lockBtn.textContent = isUnlocked() ? '🔓 Lock editing' : '🔒 Unlock editing';
+  }
+
+  function lockEditing(){
+    state.adminPassword = '';
+    sessionStorage.removeItem('labAdminPassword');
+    refreshLockBtn();
+  }
+
+  // Opens the password prompt; runs `onUnlocked` once a password has been entered.
+  // (The password isn't verified until the first actual write — the server checks it.)
+  function promptUnlock(onUnlocked){
+    if(isUnlocked()){ onUnlocked(); return; }
+    document.getElementById('f-password').value = '';
+    document.getElementById('unlockError').style.display = 'none';
+    state.pendingUnlockCallback = onUnlocked;
+    openPanel(unlockPanel);
+  }
+
+  lockBtn.addEventListener('click', function(){
+    if(isUnlocked()){
+      lockEditing();
+    } else {
+      promptUnlock(function(){ closeAllPanels(); });
+    }
+  });
+
+  document.getElementById('unlockSubmitBtn').addEventListener('click', function(){
+    var pw = document.getElementById('f-password').value;
+    var errEl = document.getElementById('unlockError');
+    if(!pw){
+      errEl.textContent = 'Enter the admin password.';
+      errEl.style.display = 'block';
+      return;
+    }
+    state.adminPassword = pw;
+    sessionStorage.setItem('labAdminPassword', pw);
+    refreshLockBtn();
+    closeAllPanels();
+    var cb = state.pendingUnlockCallback;
+    state.pendingUnlockCallback = null;
+    if(cb) cb();
+  });
+
+  // If the server rejects a write's password, drop the cached password and
+  // ask the person to re-enter it — it may have been mistyped or changed.
+  function handleAuthFailure(message){
+    lockEditing();
+    alert((message || 'Incorrect admin password.') + ' Please unlock editing again.');
+  }
+
+  // ---------- API calls ----------
+  function apiGet(){
+    if(!state.apiUrl){ setSync('', 'not connected'); return Promise.resolve(); }
+    setSync('busy', 'syncing…');
+    return fetch(state.apiUrl, {method:'GET'})
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if(data.ok){
+          state.samples = data.samples || [];
+          render();
+          setSync('live', 'synced ' + nowTime());
+        } else {
+          setSync('err', 'error: ' + (data.error || 'unknown'));
+        }
+      })
+      .catch(function(err){
+        setSync('err', 'connection failed');
+      });
+  }
+
+  function apiPost(payload){
+    return fetch(state.apiUrl, {
+      method:'POST',
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); });
+  }
+
+  function nowTime(){
+    var d = new Date();
+    return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+
+  // ---------- rendering ----------
+  function statusClass(status){
+    return 'st-' + String(status || '').replace(/\s+/g,'-');
+  }
+
+  function fmtDate(v){
+    if(!v) return '—';
+    var d = new Date(v);
+    if(isNaN(d)) return v;
+    return d.toLocaleDateString();
+  }
+
+  function fmtDateTime(v){
+    if(!v) return '—';
+    var d = new Date(v);
+    if(isNaN(d)) return v;
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function render(){
+    var q = state.search.trim().toLowerCase();
+    var rows = state.samples.filter(function(s){
+      if(state.filter !== '__all' && s.Status !== state.filter) return false;
+      if(!q) return true;
+      var hay = [s.ID, s.Name, s.HospitalNumber, s.TestOrdered, s.Remarks].join(' ').toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+
+    if(rows.length === 0){
+      tableBody.innerHTML = '<tr class="empty-row"><td colspan="11">' +
+        (state.samples.length === 0 ? 'No records yet. Add your first one.' : 'No records match this view.') +
+        '</td></tr>';
+      return;
+    }
+
+    tableBody.innerHTML = rows.map(function(s){
+      return '<tr data-id="' + escapeAttr(s.ID) + '">' +
+        '<td class="id-cell mono">' + escapeHtml(s.ID) + '</td>' +
+        '<td>' + escapeHtml(s.Name || '—') + '</td>' +
+        '<td class="mono">' + escapeHtml(s.HospitalNumber || '—') + '</td>' +
+        '<td>' + escapeHtml(s.Age || '—') + '</td>' +
+        '<td>' + escapeHtml(s.Sex || '—') + '</td>' +
+        '<td>' + escapeHtml(s.TestOrdered || '—') + '</td>' +
+        '<td class="mono">' + fmtDate(s.DateOrdered) + '</td>' +
+        '<td><span class="status-swatch ' + statusClass(s.Status) + '"><span class="sq"></span>' + escapeHtml(s.Status || '—') + '</span></td>' +
+        '<td class="mono">' + fmtDate(s.DateResultReceived) + '</td>' +
+        '<td class="notes-cell">' + escapeHtml(s.Remarks || '') + '</td>' +
+        '<td class="mono">' + fmtDateTime(s.LastUpdated) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    Array.prototype.forEach.call(tableBody.querySelectorAll('tr[data-id]'), function(tr){
+      tr.addEventListener('click', function(){
+        var id = tr.getAttribute('data-id');
+        if(!requireConnected()) return;
+        promptUnlock(function(){ openEditPanel(id); });
+      });
+    });
+  }
+
+  function escapeHtml(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function escapeAttr(v){ return escapeHtml(v); }
+
+  // ---------- filter bar ----------
+  document.getElementById('filterBar').addEventListener('click', function(e){
+    if(e.target.tagName !== 'BUTTON') return;
+    Array.prototype.forEach.call(document.querySelectorAll('#filterBar button'), function(b){ b.classList.remove('active'); });
+    e.target.classList.add('active');
+    state.filter = e.target.getAttribute('data-status');
+    render();
+  });
+
+  document.getElementById('searchInput').addEventListener('input', function(e){
+    state.search = e.target.value;
+    render();
+  });
+
+  document.getElementById('refreshBtn').addEventListener('click', apiGet);
+
+  // ---------- add / edit panel ----------
+  var form = document.getElementById('sampleForm');
+  var formError = document.getElementById('formError');
+  var deleteBtn = document.getElementById('deleteBtn');
+
+  function clearForm(){
+    form.reset();
+    document.getElementById('f-id').disabled = false;
+    formError.style.display = 'none';
+    state.editingId = null;
+    deleteBtn.style.display = 'none';
+  }
+
+  document.getElementById('addBtn').addEventListener('click', function(){
+    if(!requireConnected()) return;
+    promptUnlock(function(){
+      clearForm();
+      document.getElementById('panelTitle').textContent = 'New test';
+      document.getElementById('panelSub').textContent = 'Fill in what you know — you can edit this later.';
+      openPanel(samplePanel);
+    });
+  });
+
+  function openEditPanel(id){
+    var s = state.samples.find(function(x){ return String(x.ID) === String(id); });
+    if(!s) return;
+    clearForm();
+    state.editingId = s.ID;
+    document.getElementById('panelTitle').textContent = 'Edit test';
+    document.getElementById('panelSub').textContent = 'Test ' + s.ID;
+    document.getElementById('f-id').value = s.ID;
+    document.getElementById('f-id').disabled = true;
+    document.getElementById('f-name').value = s.Name || '';
+    document.getElementById('f-hospno').value = s.HospitalNumber || '';
+    document.getElementById('f-age').value = s.Age || '';
+    document.getElementById('f-sex').value = s.Sex || '';
+    document.getElementById('f-test').value = s.TestOrdered || '';
+    document.getElementById('f-dateordered').value = toDateInputValue(s.DateOrdered);
+    document.getElementById('f-status').value = s.Status || 'Sample Not Received';
+    document.getElementById('f-dateresult').value = toDateInputValue(s.DateResultReceived);
+    document.getElementById('f-remarks').value = s.Remarks || '';
+    deleteBtn.style.display = 'inline';
+    openPanel(samplePanel);
+  }
+
+  function toDateInputValue(v){
+    if(!v) return '';
+    var d = new Date(v);
+    if(isNaN(d)) return '';
+    return d.toISOString().slice(0,10);
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    if(!requireConnected()) return;
+    var sample = {
+      ID: document.getElementById('f-id').value.trim(),
+      Name: document.getElementById('f-name').value.trim(),
+      HospitalNumber: document.getElementById('f-hospno').value.trim(),
+      Age: document.getElementById('f-age').value.trim(),
+      Sex: document.getElementById('f-sex').value,
+      TestOrdered: document.getElementById('f-test').value.trim(),
+      DateOrdered: document.getElementById('f-dateordered').value,
+      Status: document.getElementById('f-status').value,
+      DateResultReceived: document.getElementById('f-dateresult').value,
+      Remarks: document.getElementById('f-remarks').value.trim()
+    };
+    var saveBtn = document.getElementById('saveBtn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+
+    var action = state.editingId ? 'update' : 'add';
+    if(state.editingId) sample.ID = state.editingId;
+
+    apiPost({action: action, sample: sample, password: state.adminPassword})
+      .then(function(res){
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save record';
+        if(res.ok){
+          closeAllPanels();
+          apiGet();
+        } else if(res.authError){
+          closeAllPanels();
+          handleAuthFailure(res.error);
+        } else {
+          formError.textContent = res.error || 'Save failed.';
+          formError.style.display = 'block';
+        }
+      })
+      .catch(function(){
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save record';
+        formError.textContent = 'Network error — check the connection URL in Settings.';
+        formError.style.display = 'block';
+      });
+  });
+
+  deleteBtn.addEventListener('click', function(){
+    if(!state.editingId) return;
+    if(!confirm('Delete test record ' + state.editingId + '? This cannot be undone.')) return;
+    apiPost({action:'delete', id: state.editingId, password: state.adminPassword}).then(function(res){
+      if(res.ok){
+        closeAllPanels();
+        apiGet();
+      } else if(res.authError){
+        closeAllPanels();
+        handleAuthFailure(res.error);
+      } else {
+        formError.textContent = res.error || 'Delete failed.';
+        formError.style.display = 'block';
+      }
+    });
+  });
+
+  function requireConnected(){
+    if(!state.apiUrl){
+      alert('Connect your Google Sheet first: click Settings in the top right.');
+      openPanel(settingsPanel);
+      return false;
+    }
+    return true;
+  }
+
+  // ---------- settings panel ----------
+  document.getElementById('settingsBtn').addEventListener('click', function(){
+    document.getElementById('f-apiurl').value = state.apiUrl;
+    document.getElementById('f-poll').value = state.pollSeconds;
+    document.getElementById('settingsError').style.display = 'none';
+    openPanel(settingsPanel);
+  });
+
+  document.getElementById('saveSettingsBtn').addEventListener('click', function(){
+    var url = document.getElementById('f-apiurl').value.trim();
+    var poll = parseInt(document.getElementById('f-poll').value, 10) || 20;
+    var errEl = document.getElementById('settingsError');
+    if(!url || url.indexOf('http') !== 0){
+      errEl.textContent = 'Enter a valid Apps Script Web app URL.';
+      errEl.style.display = 'block';
+      return;
+    }
+    state.apiUrl = url;
+    state.pollSeconds = poll;
+    saveSettings();
+    closeAllPanels();
+    startPolling();
+    apiGet();
+  });
+
+  // ---------- polling ----------
+  function startPolling(){
+    if(state.pollTimer) clearInterval(state.pollTimer);
+    if(state.apiUrl && state.pollSeconds > 0){
+      state.pollTimer = setInterval(apiGet, state.pollSeconds * 1000);
+    }
+  }
+
+  // ---------- boot ----------
+  loadSettings();
+  refreshLockBtn();
+  if(state.apiUrl){
+    apiGet();
+    startPolling();
+  }
+})();
+</script>
+</body>
+</html>
