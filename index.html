@@ -278,7 +278,6 @@
       <div class="subtitle">Live tracker — synced to Google Sheets</div>
     </div>
     <div class="sync-block">
-      <button class="ghost" id="lockBtn" title="Editing access">🔒 Unlock editing</button>
       <button class="ghost" id="settingsBtn" title="Connection settings">Settings</button>
       <button class="ghost" id="refreshBtn">Refresh</button>
       <span><span class="sync-dot" id="syncDot"></span> <span id="syncText">not connected</span></span>
@@ -418,29 +417,10 @@
   </div>
 </div>
 
-<!-- Unlock editing panel -->
-<div class="panel" id="unlockPanel">
-  <button class="close-x" data-close>&times;</button>
-  <h2>Unlock editing</h2>
-  <div class="panel-sub" id="unlockSub">Enter the admin password to add, edit, or delete records. Viewing the ledger never requires a password.</div>
-  <div class="field">
-    <label for="f-password">Admin password</label>
-    <input type="password" id="f-password" autocomplete="current-password">
-  </div>
-  <div class="field-error" id="unlockError"></div>
-  <div class="panel-actions">
-    <div></div>
-    <div class="right">
-      <button type="button" class="ghost" data-close>Cancel</button>
-      <button type="button" class="primary" id="unlockSubmitBtn">Unlock</button>
-    </div>
-  </div>
-</div>
-
 <script>
 (function(){
   var STORE_KEY = 'labLedgerSettings';
-  var state = { samples: [], filter: '__all', search: '', apiUrl: '', pollSeconds: 20, pollTimer: null, editingId: null, adminPassword: '', pendingUnlockCallback: null };
+  var state = { samples: [], filter: '__all', search: '', apiUrl: '', pollSeconds: 20, pollTimer: null, editingId: null };
 
   // ---------- persistence of connection settings (local to this browser) ----------
   function loadSettings(){
@@ -451,7 +431,6 @@
         state.apiUrl = s.apiUrl || '';
         state.pollSeconds = s.pollSeconds || 20;
       }
-      state.adminPassword = sessionStorage.getItem('labAdminPassword') || '';
     }catch(e){}
   }
   function saveSettings(){
@@ -465,8 +444,6 @@
   var overlay = document.getElementById('overlay');
   var samplePanel = document.getElementById('samplePanel');
   var settingsPanel = document.getElementById('settingsPanel');
-  var unlockPanel = document.getElementById('unlockPanel');
-  var lockBtn = document.getElementById('lockBtn');
 
   function setSync(mode, text){
     syncDot.className = 'sync-dot' + (mode ? ' ' + mode : '');
@@ -481,67 +458,11 @@
     overlay.classList.remove('show');
     samplePanel.classList.remove('show');
     settingsPanel.classList.remove('show');
-    unlockPanel.classList.remove('show');
   }
   overlay.addEventListener('click', closeAllPanels);
   document.querySelectorAll('[data-close]').forEach(function(el){
     el.addEventListener('click', closeAllPanels);
   });
-
-  // ---------- editing lock ----------
-  function isUnlocked(){ return !!state.adminPassword; }
-
-  function refreshLockBtn(){
-    lockBtn.textContent = isUnlocked() ? '🔓 Lock editing' : '🔒 Unlock editing';
-  }
-
-  function lockEditing(){
-    state.adminPassword = '';
-    sessionStorage.removeItem('labAdminPassword');
-    refreshLockBtn();
-  }
-
-  // Opens the password prompt; runs `onUnlocked` once a password has been entered.
-  // (The password isn't verified until the first actual write — the server checks it.)
-  function promptUnlock(onUnlocked){
-    if(isUnlocked()){ onUnlocked(); return; }
-    document.getElementById('f-password').value = '';
-    document.getElementById('unlockError').style.display = 'none';
-    state.pendingUnlockCallback = onUnlocked;
-    openPanel(unlockPanel);
-  }
-
-  lockBtn.addEventListener('click', function(){
-    if(isUnlocked()){
-      lockEditing();
-    } else {
-      promptUnlock(function(){ closeAllPanels(); });
-    }
-  });
-
-  document.getElementById('unlockSubmitBtn').addEventListener('click', function(){
-    var pw = document.getElementById('f-password').value;
-    var errEl = document.getElementById('unlockError');
-    if(!pw){
-      errEl.textContent = 'Enter the admin password.';
-      errEl.style.display = 'block';
-      return;
-    }
-    state.adminPassword = pw;
-    sessionStorage.setItem('labAdminPassword', pw);
-    refreshLockBtn();
-    closeAllPanels();
-    var cb = state.pendingUnlockCallback;
-    state.pendingUnlockCallback = null;
-    if(cb) cb();
-  });
-
-  // If the server rejects a write's password, drop the cached password and
-  // ask the person to re-enter it — it may have been mistyped or changed.
-  function handleAuthFailure(message){
-    lockEditing();
-    alert((message || 'Incorrect admin password.') + ' Please unlock editing again.');
-  }
 
   // ---------- API calls ----------
   function apiGet(){
@@ -629,9 +550,7 @@
 
     Array.prototype.forEach.call(tableBody.querySelectorAll('tr[data-id]'), function(tr){
       tr.addEventListener('click', function(){
-        var id = tr.getAttribute('data-id');
-        if(!requireConnected()) return;
-        promptUnlock(function(){ openEditPanel(id); });
+        openEditPanel(tr.getAttribute('data-id'));
       });
     });
   }
@@ -674,12 +593,10 @@
 
   document.getElementById('addBtn').addEventListener('click', function(){
     if(!requireConnected()) return;
-    promptUnlock(function(){
-      clearForm();
-      document.getElementById('panelTitle').textContent = 'New test';
-      document.getElementById('panelSub').textContent = 'Fill in what you know — you can edit this later.';
-      openPanel(samplePanel);
-    });
+    clearForm();
+    document.getElementById('panelTitle').textContent = 'New test';
+    document.getElementById('panelSub').textContent = 'Fill in what you know — you can edit this later.';
+    openPanel(samplePanel);
   });
 
   function openEditPanel(id){
@@ -733,16 +650,13 @@
     var action = state.editingId ? 'update' : 'add';
     if(state.editingId) sample.ID = state.editingId;
 
-    apiPost({action: action, sample: sample, password: state.adminPassword})
+    apiPost({action: action, sample: sample})
       .then(function(res){
         saveBtn.disabled = false;
         saveBtn.textContent = 'Save record';
         if(res.ok){
           closeAllPanels();
           apiGet();
-        } else if(res.authError){
-          closeAllPanels();
-          handleAuthFailure(res.error);
         } else {
           formError.textContent = res.error || 'Save failed.';
           formError.style.display = 'block';
@@ -759,13 +673,10 @@
   deleteBtn.addEventListener('click', function(){
     if(!state.editingId) return;
     if(!confirm('Delete test record ' + state.editingId + '? This cannot be undone.')) return;
-    apiPost({action:'delete', id: state.editingId, password: state.adminPassword}).then(function(res){
+    apiPost({action:'delete', id: state.editingId}).then(function(res){
       if(res.ok){
         closeAllPanels();
         apiGet();
-      } else if(res.authError){
-        closeAllPanels();
-        handleAuthFailure(res.error);
       } else {
         formError.textContent = res.error || 'Delete failed.';
         formError.style.display = 'block';
@@ -817,7 +728,6 @@
 
   // ---------- boot ----------
   loadSettings();
-  refreshLockBtn();
   if(state.apiUrl){
     apiGet();
     startPolling();
